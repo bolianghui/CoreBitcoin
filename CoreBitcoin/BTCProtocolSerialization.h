@@ -25,7 +25,7 @@
 // On success, returns data. On failure, returns nil.
 // lengthOut is an optional out parameter that contains total bytes read (including the length prefix)
 + (NSData*) readVarStringFromData:(NSData*)data;
-+ (NSData*) readVarStringFromData:(NSData*)data readBytes:(NSUInteger*)lengthOut;
++ (NSData*) readVarStringFromData:(NSData*)data readBytes:(NSInteger*)lengthOut;
 + (NSData*) readVarStringFromStream:(NSInputStream*)stream;
 
 // Encodes value in a varint binary form.

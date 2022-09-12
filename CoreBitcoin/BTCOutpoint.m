@@ -20,6 +20,12 @@
     return [self initWithHash:hash index:index];
 }
 
+- (NSData*) outpointData {
+    NSMutableData* result = [_txHash mutableCopy];
+    [result appendBytes:&_index length:4];
+    return result;
+}
+
 - (NSString*) txID {
     return BTCIDFromHash(self.txHash);
 }

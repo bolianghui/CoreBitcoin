@@ -29,6 +29,8 @@
 // This property is nil for coinbase inputs. See `coinbaseData` for raw binary data.
 @property(nonatomic) BTCScript* signatureScript;
 
+@property(nonatomic, nullable) BTCScript* witnessData;
+
 // Raw coinbase data if this input is coinbase.
 // If `coinbaseData` is not nil, then `signatureScript` is nil.
 @property(nonatomic) NSData* coinbaseData;

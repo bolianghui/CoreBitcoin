@@ -23,6 +23,7 @@ static const uint32_t BTCMaxSequence = 0xFFFFFFFF;
         _previousHash = BTCZero256();
         _previousIndex = BTCInvalidIndex;
         _signatureScript = [[BTCScript alloc] init];
+        _witnessData = NULL;
         _sequence = BTCMaxSequence; // max
         _value = -1;
     }
@@ -87,6 +88,7 @@ static const uint32_t BTCMaxSequence = 0xFFFFFFFF;
     txin.previousIndex = self.previousIndex;
     txin.signatureScript = [self.signatureScript copy];
     txin.sequence = self.sequence;
+    txin.value = self.value;
 
     txin.transaction = _transaction;
     txin.transactionOutput = _transactionOutput;

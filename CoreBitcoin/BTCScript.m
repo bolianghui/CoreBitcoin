@@ -89,8 +89,10 @@
     // Make sure we use a public address (WIF privkey is converted to usual P2PKH address).
     address = [address publicAddress];
 
+    // if (address.headerVersion == 0 || address.headerVersion == 111) {
     if ([address isKindOfClass:[BTCPublicKeyAddress class]]) {
         // OP_DUP OP_HASH160 <hash> OP_EQUALVERIFY OP_CHECKSIG
+      NSLog(@"Address is BTCPublicKeyAddress");
         NSMutableData* resultData = [NSMutableData data];
         
         BTCOpcode prefix[] = {OP_DUP, OP_HASH160};
@@ -105,8 +107,10 @@
         [resultData appendBytes:suffix length:sizeof(suffix)];
         
         return [self initWithData:resultData];
+    // } else if (address.headerVersion == 5 || address.headerVersion == 196) {
     } else if ([address isKindOfClass:[BTCScriptHashAddress class]]) {
         // OP_HASH160 <hash> OP_EQUAL
+      NSLog(@"Address is BTCScriptHashAddress");
         NSMutableData* resultData = [NSMutableData data];
         
         BTCOpcode prefix[] = {OP_HASH160};
@@ -122,6 +126,7 @@
         
         return [self initWithData:resultData];
     } else {
+      NSLog(@"Don't known Address type");
         return nil;
     }
 }

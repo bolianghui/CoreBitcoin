@@ -79,7 +79,7 @@
     return [self readVarStringFromData:data readBytes:NULL];
 }
 
-+ (NSData*) readVarStringFromData:(NSData*)data readBytes:(NSUInteger*)lengthOut {
++ (NSData*) readVarStringFromData:(NSData*)data readBytes:(NSInteger*)lengthOut {
     uint64_t length = 0;
     NSUInteger varIntLength = [self readVarInt:&length fromData:data];
     if (varIntLength == 0) return nil;

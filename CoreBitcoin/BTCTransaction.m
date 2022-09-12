@@ -2,6 +2,7 @@
 
 #import "BTCTransaction.h"
 #import "BTCTransactionInput.h"
+#import "BTCOutpoint.h"
 #import "BTCTransactionOutput.h"
 #import "BTCProtocolSerialization.h"
 #import "BTCData.h"
@@ -26,6 +27,8 @@ NSString* BTCTransactionIDFromHash(NSData* txhash) {
     if (self = [super init]) {
         // init default values
         _version = BTCTransactionCurrentVersion;
+        _marker = BTCTransactionCurrentMarker;
+        _flag = BTCTransactionCurrentFlag;
         _lockTime = 0;
         _inputs = @[];
         _outputs = @[];
@@ -153,12 +156,16 @@ NSString* BTCTransactionIDFromHash(NSData* txhash) {
     return BTCHash256(self.data);
 }
 
-- (NSString*) displayTransactionHash { // deprecated
-    return self.transactionID;
+- (NSData*) witnessTransactionHash {
+    return BTCHash256(self.dataWithWitness);
 }
 
 - (NSString*) transactionID {
     return BTCIDFromHash(self.transactionHash);
+}
+
+- (NSString*) witnessTransactionID {
+    return BTCIDFromHash(self.witnessTransactionHash);
 }
 
 - (NSString*) blockID {
@@ -170,19 +177,42 @@ NSString* BTCTransactionIDFromHash(NSData* txhash) {
 }
 
 - (NSData*) data {
-    return [self computePayload];
+    return [self computePayloadWithWitness:NO];
 }
 
 - (NSString*) hex {
     return BTCHexFromData(self.data);
 }
 
-- (NSData*) computePayload {
+- (NSData*) dataWithWitness {
+    return [self computeWitnessPayload];
+}
+
+- (NSString*) hexWithWitness {
+    return BTCHexFromData(self.dataWithWitness);
+}
+
+- (NSData*) computeWitnessPayload {
+    return [self computePayloadWithWitness:[self isSegWit]];
+}
+
+- (NSData*) computePayloadWithWitness:(BOOL) withWitness {
     NSMutableData* payload = [NSMutableData data];
     
     // 4-byte version
     uint32_t ver = _version;
     [payload appendBytes:&ver length:4];
+    
+    // Adding special segwit fields to serialized transaction
+    if (withWitness) {
+        // 1-byte marker
+        uint32_t marker = _marker;
+        [payload appendBytes:&marker length:1];
+        
+        // 1-byte flag
+        uint32_t flag = _flag;
+        [payload appendBytes:&flag length:1];
+    }
     
     // varint with number of inputs
     [payload appendData:[BTCProtocolSerialization dataForVarInt:_inputs.count]];
@@ -200,6 +230,34 @@ NSString* BTCTransactionIDFromHash(NSData* txhash) {
         [payload appendData:output.data];
     }
     
+    // Adding witness data to serialized transaction
+    if (withWitness) {
+        for (BTCTransactionInput* input in _inputs) {
+            if (input.witnessData) {
+                [payload appendData:[BTCProtocolSerialization dataForVarInt:input.witnessData.scriptChunks.count]];
+                
+                for (BTCScriptChunk* chunk in input.witnessData.scriptChunks) {
+                    NSData* data;
+                    
+                    if (chunk.isOpcode) {
+                        unsigned char opcode = chunk.opcode;
+                        [payload appendBytes:&opcode length:1];
+                    } else {
+                        data = chunk.pushdata;
+                    }
+                    
+                    if (data) {
+                        [payload appendData:[BTCProtocolSerialization dataForVarInt:[data length]]];
+                        [payload appendData:data];
+                    }
+                }
+            } else {
+                uint32_t emptyWitnessDataBytes = 0;
+                [payload appendBytes:&emptyWitnessDataBytes length:1];
+            }
+        }
+    }
+    
     // 4-byte lock_time
     uint32_t lt = _lockTime;
     [payload appendBytes:&lt length:4];
@@ -207,6 +265,14 @@ NSString* BTCTransactionIDFromHash(NSData* txhash) {
     return payload;
 }
 
+- (BOOL) isSegWit {
+    for (BTCTransactionInput* input in _inputs) {
+        if (input.witnessData) {
+            return YES;
+        }
+    }
+    return NO;
+}
 
 #pragma mark - Methods
 
@@ -339,7 +405,7 @@ NSString* BTCTransactionIDFromHash(NSData* txhash) {
 
 // Hash for signing a transaction.
 // You should supply the output script of the previous transaction, desired hash type and input index in this transaction.
-- (NSData*) signatureHashForScript:(BTCScript*)subscript inputIndex:(uint32_t)inputIndex hashType:(BTCSignatureHashType)hashType error:(NSError**)errorOut {
+- (NSData*) signatureHashForScript:(BTCScript*)subscript forSegWit:(BOOL) isSegWit inputIndex:(uint32_t)inputIndex hashType:(BTCSignatureHashType)hashType error:(NSError**)errorOut {
     // Create a temporary copy of the transaction to apply modifications to it.
     BTCTransaction* tx = [self copy];
     
@@ -429,7 +495,14 @@ NSString* BTCTransactionIDFromHash(NSData* txhash) {
     
     // Important: we have to hash transaction together with its hash type.
     // Hash type is appended as little endian uint32 unlike 1-byte suffix of the signature.
-    NSMutableData* fulldata = [tx.data mutableCopy];
+    NSMutableData* fulldata;
+    
+    if (isSegWit) {
+        fulldata = [[tx computeSignatureHashForWitnessWithHashType:hashType inputIndex:inputIndex] mutableCopy];
+    } else {
+        fulldata = [tx.data mutableCopy];
+    }
+    
     uint32_t hashType32 = OSSwapHostToLittleInt32((uint32_t)hashType);
     [fulldata appendBytes:&hashType32 length:sizeof(hashType32)];
     
@@ -442,6 +515,82 @@ NSString* BTCTransactionIDFromHash(NSData* txhash) {
 //    NSLog(@"TX PLIST: %@", tx.dictionary);
     
     return hash;
+}
+
+- (NSData*) computeSignatureHashForWitnessWithHashType:(BTCSignatureHashType)hashType inputIndex:(NSUInteger) index {
+    
+    NSMutableData* payload = [NSMutableData data];
+    
+    BOOL anyoneCanPay = hashType & SIGHASH_ANYONECANPAY;
+    BOOL sighashSingle = (hashType & SIGHASH_OUTPUT_MASK) == SIGHASH_SINGLE;
+    BOOL sighashNone = (hashType & SIGHASH_OUTPUT_MASK) == SIGHASH_NONE;
+    
+    // 4-byte version (nVersion)
+    uint32_t ver = _version;
+    [payload appendBytes:&ver length:4];
+    
+    // hashPrevouts
+    if (anyoneCanPay) {
+        [payload appendData:BTCZero256()];
+    } else {
+        // Double SHA256 of the serialization of all input outpoints
+        NSMutableData* prevouts = [[NSMutableData alloc] init];
+        for (BTCTransactionInput* input in _inputs) {
+            [prevouts appendData:input.outpoint.outpointData];
+        }
+        [payload appendData:BTCHash256(prevouts)];
+    }
+    
+    // hashSequence
+    if (!anyoneCanPay && !sighashSingle && !sighashNone) {
+        // Double SHA256 of the serialization of all input nSequence
+        NSMutableData* sequence = [[NSMutableData alloc] init];
+        for (BTCTransactionInput* input in _inputs) {
+            uint32_t seq = input.sequence;
+            [sequence appendBytes:&seq length:sizeof(seq)];
+        }
+        [payload appendData:BTCHash256(sequence)];
+    } else {
+        [payload appendData:BTCZero256()];
+    }
+    
+    BTCTransactionInput* input = _inputs[index];
+    // outpoint
+    [payload appendData:input.outpoint.outpointData];
+    
+    // scriptCode
+    NSData* scriptData = input.signatureScript.data;
+    /// Comment out for imToken: witness data should NOT include scriptCode length!
+    // [payload appendData:[BTCProtocolSerialization dataForVarInt:scriptData.length]];
+    [payload appendData:scriptData];
+    
+    // amount
+    BTCAmount amount = input.value;
+    [payload appendBytes:&amount length:sizeof(amount)];
+    
+    // nSequence
+    uint32_t sequence = input.sequence;
+    [payload appendBytes:&sequence length:sizeof(sequence)];
+    
+    // hashOutputs
+    if (!sighashSingle && !sighashNone) {
+        NSMutableData* outputs = [[NSMutableData alloc] init];
+        for (BTCTransactionOutput* output in _outputs) {
+            [outputs appendData:output.data];
+        }
+        [payload appendData:BTCHash256(outputs)];
+    } else if (sighashSingle && index < _outputs.count) {
+        BTCTransactionOutput* output = _outputs[index];
+        [payload appendData:BTCHash256(output.data)];
+    } else {
+        [payload appendData:BTCZero256()];
+    }
+    
+    // nLockTime
+    uint32_t lt = _lockTime;
+    [payload appendBytes:&lt length:4];
+    
+    return payload;
 }
 
 

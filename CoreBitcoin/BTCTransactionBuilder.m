@@ -299,7 +299,7 @@ NSString* const BTCTransactionBuilderErrorDomain = @"com.oleganza.CoreBitcoin.Tr
 
         BTCSignatureHashType hashtype = SIGHASH_ALL;
 
-        NSData* sighash = [tx signatureHashForScript:[outputScript copy] inputIndex:i hashType:hashtype error:errorOut];
+        NSData* sighash = [tx signatureHashForScript:[outputScript copy] forSegWit: NO inputIndex:i hashType:hashtype error:errorOut];
         if (!sighash) {
             return NO;
         }

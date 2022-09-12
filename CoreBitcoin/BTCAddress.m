@@ -86,7 +86,7 @@ enum
     if (![address isKindOfClass:self]) {
         return nil;
     }
-
+    address.headerVersion = version;
     // Securely erase decoded address data
     BTCDataClear(composedData);
     

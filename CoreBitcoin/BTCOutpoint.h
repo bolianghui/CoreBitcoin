@@ -6,6 +6,9 @@
 // It is a part of BTCTransactionInput.
 @interface BTCOutpoint : NSObject <NSCopying>
 
+// Outpoint bytes
+@property(nonatomic) NSData* outpointData;
+
 // Hash of the previous transaction.
 @property(nonatomic) NSData* txHash;
 

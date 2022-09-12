@@ -41,6 +41,8 @@
  */
 @property(nonatomic, readonly, nonnull) NSData* data;
 
+@property(nonatomic, assign) NSInteger headerVersion;
+
 /*!
  * Returns representation in base58 encoding.
  */

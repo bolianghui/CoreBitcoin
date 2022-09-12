@@ -1,13 +1,13 @@
 Pod::Spec.new do |s|
-  s.name          = "CoreBitcoinDep"
-  s.version       = "0.0.3"
+  s.name          = "CoreBitcoin"
+  s.version       = "0.0.4"
   s.summary       = "The libraries token core need"
 
   s.description   = <<-DESC
   The libaray contains the CoreBitcoin and libscrypt.
   DESC
 
-  s.homepage      = "https://token.im"
+  s.homepage      = "https://github.com/bolianghui/CoreBitcoin"
   s.license       = {
     type: "Apache License, Version 2.0",
     file: "LICENSE"
@@ -17,7 +17,7 @@ Pod::Spec.new do |s|
   s.platform      = :ios, "9.0"
 
   s.source        = { :git => "https://github.com/bolianghui/CoreBitcoin.git", :tag => "#{s.version}" }
-  s.source_files  = "CoreBitcoinDep/*.{h,m,c}", "libscrypt/*.{h,m,c}"
+  s.source_files  = "CoreBitcoin/*.{h,m,c}", "libscrypt/*.{h,m,c}"
   s.exclude_files = ['*+Tests.{h,m}']
   s.requires_arc = true
   s.framework    = 'Foundation'

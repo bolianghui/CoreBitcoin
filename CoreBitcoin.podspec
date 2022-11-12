@@ -24,6 +24,6 @@ Pod::Spec.new do |s|
   s.ios.framework = 'UIKit'
   s.osx.framework = 'AppKit'
 
-  s.dependency "BoringSSL",'0.0.2'
+  s.dependency "BoringSSL",'0.0.6'
   #s.dependency "GRKOpenSSLFramework"
 end
